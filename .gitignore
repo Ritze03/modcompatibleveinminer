@@ -1,2 +1,12 @@
 .claude/teamlead/
 .claude/worktrees/
+.tl-scratch/
+.gradle/
+build/
+versions/*/build/
+run/
+versions/*/run/
+.idea/
+*.iml
+.vscode/
+.kotlin/

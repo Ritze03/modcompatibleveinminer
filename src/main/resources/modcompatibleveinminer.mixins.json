@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.ritze.veinminer.mixin",
+  "compatibilityLevel": "${mixin_compat}",
+  "mixins": [
+    "BlockBreakMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
