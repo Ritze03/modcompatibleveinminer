@@ -9,6 +9,7 @@ val modVersion = property("mod.version") as String
 val mcVersion = property("minecraft_version") as String
 val mcRange = property("mc_range") as String
 val javaVersion = (property("java_version") as String).toInt()
+val fabricApiVersion = property("fabric_api_version") as String
 
 version = "$modVersion+mc$mcRange"
 group = property("mod.group") as String
@@ -21,9 +22,23 @@ repositories {
     mavenCentral()
 }
 
+// Test-only source set src/gametest (own mod id, never in the main jar).
+// Run: ./gradlew :26.3:runGameTest  (server game tests, exits by itself)
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "$modId-gametest"
+        enableGameTests = true
+        enableClientGameTests = false
+        eula = true // agrees to the Minecraft EULA for the dev run directory
+    }
+}
+
 dependencies {
     minecraft("com.mojang:minecraft:$mcVersion")
     implementation("net.fabricmc:fabric-loader:${property("loader_version")}")
+    // Game tests only: Fabric API is NOT a dependency of the shipped mod.
+    "gametestImplementation"("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
 }
 
 java {

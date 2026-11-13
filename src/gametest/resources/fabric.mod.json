@@ -1,0 +1,12 @@
+{
+	"schemaVersion": 1,
+	"id": "modcompatibleveinminer-gametest",
+	"version": "1.0.0",
+	"name": "ModCompatibleVeinminer game tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-gametest": [
+			"com.ritze.veinminer.gametest.VeinminerGameTest"
+		]
+	}
+}
