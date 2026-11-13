@@ -10,3 +10,4 @@ versions/*/run/
 *.iml
 .vscode/
 .kotlin/
+.claude/settings.json
