@@ -85,6 +85,8 @@ public class VeinminerGameTest {
 		for (BlockPos p : cells) {
 			helper.setBlock(p, block);
 		}
+		helper.assertTrue(count(helper, cells, block) == cells.size(),
+				"placement failed: " + count(helper, cells, block) + "/" + cells.size());
 	}
 
 	private static BlockPos abs(GameTestHelper helper, BlockPos rel) {

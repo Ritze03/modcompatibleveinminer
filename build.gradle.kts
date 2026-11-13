@@ -1,6 +1,6 @@
 plugins {
     // Unobfuscated Minecraft (26.1+). Obfuscated nodes (<= 1.21.11) need
-    // `net.fabricmc.fabric-loom-remap` instead; see README / loom-back-compat.
+    // `net.fabricmc.fabric-loom-remap` instead.
     id("net.fabricmc.fabric-loom") version "1.19.4"
 }
 
