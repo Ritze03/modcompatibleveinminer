@@ -59,7 +59,8 @@ dependencies {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(javaVersion))
+    // No JDK 17 is required: nodes targeting Java 17 compile on a JDK 21 toolchain with --release 17 (below).
+    toolchain.languageVersion.set(JavaLanguageVersion.of(maxOf(javaVersion, 21)))
     withSourcesJar()
 }
 

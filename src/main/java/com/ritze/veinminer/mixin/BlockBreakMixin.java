@@ -61,8 +61,8 @@ public abstract class BlockBreakMixin {
 		}
 		boolean removed = world.destroyBlock(start, true, this.player);
 		if (removed) {
-			EquipmentSlot slot = this.player.getMainHandItem() == tool ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-			tool.hurtAndBreak(1, this.player, slot);
+			/*? if >=1.20.5 {*/EquipmentSlot slot = this.player.getMainHandItem() == tool ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;/*?} else {*//*tool.hurtAndBreak(1, this.player, p -> p.broadcastBreakEvent(this.player.getUsedItemHand()));*//*?}*/
+			/*? if >=1.20.5 {*/tool.hurtAndBreak(1, this.player, slot);/*?}*/
 			brokenCount++;
 		}
 		for (int dx = -1; dx <= 1; dx++) {
