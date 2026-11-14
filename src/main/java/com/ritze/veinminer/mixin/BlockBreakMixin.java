@@ -7,7 +7,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources./*? if >=1.21.11 {*/Identifier/*?} else {*//*ResourceLocation*//*?}*/;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -15,6 +14,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -25,10 +25,20 @@ public abstract class BlockBreakMixin {
 	@Final
 	protected ServerPlayer player;
 
+	@Shadow
+	public abstract boolean destroyBlock(BlockPos pos);
+
+	/** Set while the vein runs, so the nested destroyBlock calls do not start veins of their own. */
+	@Unique
+	private boolean veinminer$mining;
+
 	private static final int VEINMINE_LIMIT = 50;
 
 	@Inject(method = "destroyBlock", at = @At("HEAD"), cancellable = true)
 	private void onTryBreakBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+		if (this.veinminer$mining) {
+			return;
+		}
 		ItemStack heldItem = this.player.getMainHandItem();
 		if (!heldItem.isEmpty()) {
 			/*? if >=1.21.11 {*/Identifier/*?} else {*//*ResourceLocation*//*?}*/ itemId = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
@@ -39,7 +49,12 @@ public abstract class BlockBreakMixin {
 				if (blockId.getPath().endsWith("_ore") || blockId.getPath().endsWith("ancient_debris")) {
 					if (heldItem.isCorrectToolForDrops(state)) {
 						if (!this.player.isShiftKeyDown()) {
-							this.veinmine(world, pos, state.getBlock(), new HashSet<>(), 0, heldItem);
+							this.veinminer$mining = true;
+							try {
+								this.veinmine(world, pos, state.getBlock(), new HashSet<>(), 0, heldItem);
+							} finally {
+								this.veinminer$mining = false;
+							}
 						}
 					}
 				}
@@ -59,10 +74,8 @@ public abstract class BlockBreakMixin {
 		if (!state.is(targetBlock)) {
 			return brokenCount;
 		}
-		boolean removed = world.destroyBlock(start, true, this.player);
+		boolean removed = this.destroyBlock(start);
 		if (removed) {
-			/*? if >=1.20.5 {*/EquipmentSlot slot = this.player.getMainHandItem() == tool ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;/*?} else {*//*tool.hurtAndBreak(1, this.player, p -> p.broadcastBreakEvent(this.player.getUsedItemHand()));*//*?}*/
-			/*? if >=1.20.5 {*/tool.hurtAndBreak(1, this.player, slot);/*?}*/
 			brokenCount++;
 		}
 		for (int dx = -1; dx <= 1; dx++) {

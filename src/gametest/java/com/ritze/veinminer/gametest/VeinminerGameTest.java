@@ -4,15 +4,22 @@ import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.resources.ResourceKey;
 
 /**
  * Drives the real ServerPlayerGameMode.destroyBlock(pos) of a mock ServerPlayer, so the
@@ -44,8 +51,10 @@ public class VeinminerGameTest {
 	}
 
 	private static BlockPos base(int slot) {
-		// Slots 0..N are 100 blocks apart on x; y/z well inside a clear area, height 10 above the origin.
-		return new BlockPos(slot * 100, 10, 0);
+		// Slots 0..N are 100 blocks apart on z, height 10 above the origin. The test framework lays the structures
+		// out in rows along x (15 apart, order random per run), so an x offset per slot could land on the area of
+		// another test; z offsets cannot.
+		return new BlockPos(0, 10, slot * 100);
 	}
 
 	private static void clearAround(GameTestHelper helper, BlockPos center, int r) {
@@ -194,6 +203,119 @@ public class VeinminerGameTest {
 		int lost = tool.getDamageValue();
 		System.out.println("[veinminer-gametest] durability lost for " + vein.size() + "-block vein: " + lost);
 		helper.assertTrue(lost == vein.size(), "durability lost " + lost + ", expected " + vein.size());
+		helper.succeed();
+	}
+
+	// ---- Drops must equal a manual break: held tool, Fortune, Silk Touch, XP ----
+
+	private static ItemStack enchanted(GameTestHelper helper, Item item, ResourceKey<Enchantment> enchantment, int level) {
+		ItemStack stack = new ItemStack(item);
+		if (enchantment != null) {
+			stack.enchant(helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(enchantment), level);
+		}
+		return stack;
+	}
+
+	/**
+	 * Shifts p so that its absolute x is 1 and its absolute z is 8 (mod 16): a vein of up to 12 blocks along +x then
+	 * lies inside one chunk and its drops land in the same chunk. Far-away chunks are loaded for blocks but not for
+	 * entities, so drops across a chunk border would be missing from getEntities.
+	 */
+	private static BlockPos chunkSafe(GameTestHelper helper, BlockPos p) {
+		BlockPos a = abs(helper, p);
+		return p.offset(Math.floorMod(1 - a.getX(), 16), 0, Math.floorMod(8 - a.getZ(), 16));
+	}
+
+	/** A straight line of n blocks along +x. */
+	private static List<BlockPos> line(BlockPos o, int n) {
+		List<BlockPos> v = new ArrayList<>();
+		for (int i = 0; i < n; i++) {
+			v.add(o.offset(i, 0, 0));
+		}
+		return v;
+	}
+
+	/** getEntities is not reliably limited to the radius, so filter by distance to the vein (absolute coordinates). */
+	private static boolean near(GameTestHelper helper, BlockPos center, net.minecraft.world.entity.Entity e) {
+		return e.position().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(abs(helper, center))) <= 20;
+	}
+
+	/** Sums the stack counts of all dropped items of the given kind around the vein (item entities are added synchronously). */
+	private static int dropped(GameTestHelper helper, BlockPos center, Item item) {
+		int n = 0;
+		for (ItemEntity e : helper.getEntities(EntityTypes.ITEM, center, 20)) {
+			if (near(helper, center, e) && e.getItem().is(item)) {
+				n += e.getItem().getCount();
+			}
+		}
+		return n;
+	}
+
+	private static int orbs(GameTestHelper helper, BlockPos center) {
+		int n = 0;
+		for (ExperienceOrb e : helper.getEntities(EntityTypes.EXPERIENCE_ORB, center, 20)) {
+			if (near(helper, center, e)) {
+				n += e.getValue();
+			}
+		}
+		return n;
+	}
+
+	/** Breaks the vein with the given tool and returns {itemDrops, orbValue}; asserts the vein is gone. */
+	private static int[] mine(GameTestHelper helper, int slot, Block ore, int n, ItemStack tool, Item drop) {
+		BlockPos o = chunkSafe(helper, base(slot));
+		BlockPos center = o.offset(n / 2, 0, 0);
+		clearAround(helper, center, n / 2 + 4);
+		List<BlockPos> vein = line(o, n);
+		place(helper, vein, ore);
+		ServerPlayer player = player(helper, tool);
+		player.gameMode.destroyBlock(abs(helper, o));
+		helper.assertTrue(count(helper, vein, ore) == 0, "vein blocks left: " + count(helper, vein, ore));
+		return new int[] {dropped(helper, center, drop), orbs(helper, center)};
+	}
+
+	// 7. Fortune III: each of the 12 ores drops at least 1 diamond; the bonus must show up in the total
+	@GameTest
+	public void fortuneIncreasesDrops(GameTestHelper helper) {
+		int[] r = mine(helper, 6, Blocks.DIAMOND_ORE, 12, enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.FORTUNE, 3), Items.DIAMOND);
+		System.out.println("[veinminer-gametest] fortune III, 12 diamond ore: diamonds=" + r[0] + " xp=" + r[1]);
+		helper.assertTrue(r[0] > 12, "diamonds dropped " + r[0] + ", expected > 12 with Fortune III");
+		helper.succeed();
+	}
+
+	// 8. Silk Touch: the ore blocks themselves, no raw items, no XP
+	@GameTest
+	public void silkTouchDropsOreBlocks(GameTestHelper helper) {
+		int[] r = mine(helper, 7, Blocks.IRON_ORE, 8, enchanted(helper, Items.IRON_PICKAXE, Enchantments.SILK_TOUCH, 1), Items.IRON_ORE);
+		BlockPos center = chunkSafe(helper, base(7)).offset(4, 0, 0);
+		int raw = dropped(helper, center, Items.RAW_IRON);
+		System.out.println("[veinminer-gametest] silk touch, 8 iron ore: iron_ore=" + r[0] + " raw_iron=" + raw + " xp=" + r[1]);
+		helper.assertTrue(r[0] == 8, "iron_ore items " + r[0] + ", expected 8");
+		helper.assertTrue(raw == 0, "raw_iron items " + raw + ", expected 0");
+		helper.assertTrue(r[1] == 0, "xp " + r[1] + ", expected 0");
+		helper.succeed();
+	}
+
+	// 9. XP: coal ore gives XP by hand, none with Silk Touch
+	@GameTest
+	public void silkTouchGivesNoXp(GameTestHelper helper) {
+		int[] silk = mine(helper, 8, Blocks.COAL_ORE, 8, enchanted(helper, Items.IRON_PICKAXE, Enchantments.SILK_TOUCH, 1), Items.COAL_ORE);
+		System.out.println("[veinminer-gametest] silk touch, 8 coal ore: coal_ore=" + silk[0] + " xp=" + silk[1]);
+		helper.assertTrue(silk[0] == 8 && silk[1] == 0, "silk touch: coal_ore items " + silk[0] + " (expected 8), xp " + silk[1] + " (expected 0)");
+		int[] plain = mine(helper, 9, Blocks.COAL_ORE, 8, new ItemStack(Items.IRON_PICKAXE), Items.COAL);
+		System.out.println("[veinminer-gametest] plain, 8 coal ore: coal=" + plain[0] + " xp=" + plain[1]);
+		helper.assertTrue(plain[0] == 8 && plain[1] > 0, "plain: coal " + plain[0] + " (expected 8), xp " + plain[1] + " (expected > 0)");
+		helper.succeed();
+	}
+
+	// 10. Baseline: plain pickaxe, iron ore drops raw iron (a break with the empty stack drops nothing)
+	@GameTest
+	public void plainPickaxeDropsRawIron(GameTestHelper helper) {
+		int[] r = mine(helper, 10, Blocks.IRON_ORE, 8, new ItemStack(Items.IRON_PICKAXE), Items.RAW_IRON);
+		int ore = dropped(helper, chunkSafe(helper, base(10)).offset(4, 0, 0), Items.IRON_ORE);
+		System.out.println("[veinminer-gametest] plain, 8 iron ore: raw_iron=" + r[0] + " iron_ore=" + ore);
+		helper.assertTrue(r[0] == 8, "raw_iron items " + r[0] + ", expected 8");
+		helper.assertTrue(ore == 0, "iron_ore items " + ore + ", expected 0");
 		helper.succeed();
 	}
 }
