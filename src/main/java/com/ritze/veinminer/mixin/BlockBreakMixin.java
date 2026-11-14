@@ -69,6 +69,10 @@ public abstract class BlockBreakMixin {
 		if (brokenCount >= VEINMINE_LIMIT) {
 			return brokenCount;
 		}
+		if (tool.isEmpty()) {
+			// The pickaxe broke during the vein: stop, as a player mining by hand would.
+			return brokenCount;
+		}
 		visited.add(start);
 		BlockState state = world.getBlockState(start);
 		if (!state.is(targetBlock)) {

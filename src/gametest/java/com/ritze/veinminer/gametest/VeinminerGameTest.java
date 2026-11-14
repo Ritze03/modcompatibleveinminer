@@ -274,12 +274,15 @@ public class VeinminerGameTest {
 		return new int[] {dropped(helper, center, drop), orbs(helper, center)};
 	}
 
-	// 7. Fortune III: each of the 12 ores drops at least 1 diamond; the bonus must show up in the total
+	// 7. Fortune III: each ore drops at least 1 diamond; the bonus must show up in the total.
+	// One vein of 12 fails with p = 0.6^12 (0.22%), so mine two veins and require > 24 (p ~ 5e-6).
 	@GameTest
 	public void fortuneIncreasesDrops(GameTestHelper helper) {
-		int[] r = mine(helper, 6, Blocks.DIAMOND_ORE, 12, enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.FORTUNE, 3), Items.DIAMOND);
-		System.out.println("[veinminer-gametest] fortune III, 12 diamond ore: diamonds=" + r[0] + " xp=" + r[1]);
-		helper.assertTrue(r[0] > 12, "diamonds dropped " + r[0] + ", expected > 12 with Fortune III");
+		int[] a = mine(helper, 6, Blocks.DIAMOND_ORE, 12, enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.FORTUNE, 3), Items.DIAMOND);
+		int[] b = mine(helper, 12, Blocks.DIAMOND_ORE, 12, enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.FORTUNE, 3), Items.DIAMOND);
+		int total = a[0] + b[0];
+		System.out.println("[veinminer-gametest] fortune III, 2x12 diamond ore: diamonds=" + a[0] + "+" + b[0] + "=" + total + " xp=" + (a[1] + b[1]));
+		helper.assertTrue(total > 24, "diamonds dropped " + total + ", expected > 24 with Fortune III");
 		helper.succeed();
 	}
 
@@ -316,6 +319,28 @@ public class VeinminerGameTest {
 		System.out.println("[veinminer-gametest] plain, 8 iron ore: raw_iron=" + r[0] + " iron_ore=" + ore);
 		helper.assertTrue(r[0] == 8, "raw_iron items " + r[0] + ", expected 8");
 		helper.assertTrue(ore == 0, "iron_ore items " + ore + ", expected 0");
+		helper.succeed();
+	}
+
+	// 11. Tool break: the vein stops when the pickaxe breaks, like a player mining by hand
+	@GameTest
+	public void toolBreakStopsVein(GameTestHelper helper) {
+		BlockPos o = chunkSafe(helper, base(11));
+		BlockPos center = o.offset(4, 0, 0);
+		clearAround(helper, center, 8);
+		List<BlockPos> vein = line(o, 8);
+		place(helper, vein, ORE);
+		ItemStack tool = new ItemStack(Items.IRON_PICKAXE);
+		tool.setDamageValue(tool.getMaxDamage() - 2);
+		ServerPlayer player = player(helper, tool);
+		player.gameMode.destroyBlock(abs(helper, o));
+		int left = count(helper, vein, ORE);
+		int gone = vein.size() - left;
+		int raw = dropped(helper, center, Items.RAW_IRON);
+		System.out.println("[veinminer-gametest] tool break, 8 iron ore, 2 uses left: raw_iron=" + raw + " ores_left=" + left + " gone=" + gone);
+		helper.assertTrue(player.getMainHandItem().isEmpty(), "pickaxe is still in hand: " + player.getMainHandItem());
+		helper.assertTrue(gone >= 1 && gone < vein.size(), "gone " + gone + ", expected the vein to stop early");
+		helper.assertTrue(raw == gone, "raw_iron " + raw + " != ores gone " + gone);
 		helper.succeed();
 	}
 }
