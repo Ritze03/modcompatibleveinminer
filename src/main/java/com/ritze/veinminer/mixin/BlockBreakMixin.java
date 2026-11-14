@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources./*? if >=1.21.11 {*/Identifier/*?} else {*//*ResourceLocation*//*?}*/;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -31,11 +31,11 @@ public abstract class BlockBreakMixin {
 	private void onTryBreakBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
 		ItemStack heldItem = this.player.getMainHandItem();
 		if (!heldItem.isEmpty()) {
-			Identifier itemId = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
+			/*? if >=1.21.11 {*/Identifier/*?} else {*//*ResourceLocation*//*?}*/ itemId = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
 			if (itemId.getPath().endsWith("_pickaxe")) {
 				Level world = this.player.level();
 				BlockState state = world.getBlockState(pos);
-				Identifier blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+				/*? if >=1.21.11 {*/Identifier/*?} else {*//*ResourceLocation*//*?}*/ blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
 				if (blockId.getPath().endsWith("_ore") || blockId.getPath().endsWith("ancient_debris")) {
 					if (heldItem.isCorrectToolForDrops(state)) {
 						if (!this.player.isShiftKeyDown()) {

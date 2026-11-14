@@ -1,8 +1,16 @@
+import net.fabricmc.loom.api.LoomGradleExtensionAPI
+
 plugins {
-    // Unobfuscated Minecraft (26.1+). Obfuscated nodes (<= 1.21.11) need
-    // `net.fabricmc.fabric-loom-remap` instead.
-    id("net.fabricmc.fabric-loom") version "1.19.4"
+    java // only for the type-safe accessors (java {}, base {}, tasks.jar ...); Loom applies it anyway
 }
+
+// Both Loom plugins are declared (apply false) in the root stonecutter.gradle.kts; each node applies
+// exactly one: unobfuscated Minecraft (26.1+) -> fabric-loom, obfuscated (<= 1.21.11) -> fabric-loom-remap.
+// Because of apply(plugin = ...) the type-safe accessors (minecraft(), fabricApi, ...) do not exist here.
+val obf = findProperty("obf") == "true"
+apply(plugin = if (obf) "net.fabricmc.fabric-loom-remap" else "net.fabricmc.fabric-loom")
+// resolved here: `the<>()` inside dependencies {} would look at the DependencyHandler
+val officialMojangMappings = if (obf) the<LoomGradleExtensionAPI>().officialMojangMappings() else null
 
 val modId = property("mod.id") as String
 val modVersion = property("mod.version") as String
@@ -26,7 +34,7 @@ repositories {
 // Test-only source set src/gametest (own mod id, never in the main jar).
 // Run: ./gradlew :26.3:runGameTest  (server game tests, exits by itself)
 if (gametest) {
-    fabricApi {
+    extensions.configure<net.fabricmc.loom.api.fabricapi.FabricApiExtension>("fabricApi") {
         configureTests {
             createSourceSet = true
             modId = "$modId-gametest"
@@ -38,8 +46,12 @@ if (gametest) {
 }
 
 dependencies {
-    minecraft("com.mojang:minecraft:$mcVersion")
-    implementation("net.fabricmc:fabric-loader:${property("loader_version")}")
+    "minecraft"("com.mojang:minecraft:$mcVersion")
+    if (obf) {
+        "mappings"(officialMojangMappings!!)
+    }
+    // the remap plugin only resolves loader's transitive deps (Mixin ...) through modImplementation
+    (if (obf) "modImplementation" else "implementation")("net.fabricmc:fabric-loader:${property("loader_version")}")
     // Game tests only: Fabric API is NOT a dependency of the shipped mod.
     if (gametest) {
         "gametestImplementation"("net.fabricmc.fabric-api:fabric-api:${property("fabric_api_version")}")

@@ -14,7 +14,7 @@ plugins {
 stonecutter {
     create(rootProject) {
         // Add further Minecraft versions here, one node each.
-        versions("26.1", "26.3")
+        versions("1.21", "1.21.9", "1.21.11", "26.1", "26.3")
         vcsVersion = "26.3"
     }
 }
